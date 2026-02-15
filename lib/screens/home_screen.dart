@@ -1,18 +1,20 @@
+// screens/home_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:reality_gap/screens/home/app_card.dart';
-import 'package:reality_gap/screens/home/banner.dart';
-import 'package:reality_gap/screens/home/gap_row.dart';
-import 'package:reality_gap/screens/home/output_section.dart';
-import 'package:reality_gap/screens/home/stat.dart';
 
 import '../models/day_model.dart';
 import '../services/storage_service.dart';
 import '../services/usage_stats_service.dart';
 
 import 'log_output_screen.dart';
-import 'weekly_summary_screen.dart';
-import 'permissions_screen.dart';
+
+import 'home/stat.dart';
+import 'home/app_card.dart';
+import 'home/gap_row.dart';
+import 'home/banner.dart';
+import 'home/output_section.dart';
+// TrackerCard removed — Tracker is now the second bottom-nav tab
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -63,27 +65,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadData();
   }
 
-  Future<void> _goToWeeklySummary() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const WeeklySummaryScreen()),
-    );
-    _loadData();
-  }
-
-  Future<void> _goToSettings() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PermissionsScreen(
-          onPermissionGranted: () {},
-          showBackButton: true,
-        ),
-      ),
-    );
-    _loadData();
-  }
-
   String _formatTime(int minutes) {
     if (minutes < 60) return '${minutes}m';
     final hours = minutes ~/ 60;
@@ -100,16 +81,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Reality Gap'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.calendar_today),
-            onPressed: _goToWeeklySummary,
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: _goToSettings,
-          ),
-        ],
+        // Calendar and Settings removed — they live in the bottom nav now.
+        // AppBar is kept for the title and pull-to-refresh affordance.
       ),
       body: _isLoading
           ? const Center(
