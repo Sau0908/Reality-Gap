@@ -1,25 +1,3 @@
-// services/tracker_service.dart
-//
-// Dependencies (add to pubspec.yaml):
-//   flutter_local_notifications: ^17.0.0
-//   timezone: ^0.9.0
-//   uuid: ^4.0.0
-//
-// Android manifest additions (android/app/src/main/AndroidManifest.xml):
-//   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-//   <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
-//   <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-//
-//   Inside <application>:
-//   <receiver android:exported="false"
-//       android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"/>
-//   <receiver android:exported="false"
-//       android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
-//     <intent-filter>
-//       <action android:name="android.intent.action.BOOT_COMPLETED"/>
-//     </intent-filter>
-//   </receiver>
-
 import 'dart:convert';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -29,19 +7,14 @@ import 'package:uuid/uuid.dart';
 
 import '../models/tracker_slot_model.dart';
 
-// ── Notification tap callback ──────────────────────────────────────────────
-// Set this in main.dart after TrackerService.instance.init():
-//   TrackerService.onNotificationTap = (slotId) { /* navigate */ };
 typedef SlotNotificationTapCallback = void Function(String slotId);
 
 class TrackerService {
   TrackerService._();
   static final TrackerService instance = TrackerService._();
 
-  // ── Notification tap callback (set from main.dart) ─────────────────────
   static SlotNotificationTapCallback? onNotificationTap;
 
-  // ── Keys ───────────────────────────────────────────────────────────────
   static const _kIsActive = 'tracker_isActive';
   static const _kInterval = 'tracker_intervalMinutes';
   static const _kStartedAt = 'tracker_startedAt';
@@ -56,8 +29,6 @@ class TrackerService {
 
   bool _initialized = false;
 
-  // ── Init ───────────────────────────────────────────────────────────────
-  // Call once from main.dart before runApp().
   Future<void> init() async {
     if (_initialized) return;
     _initialized = true;
@@ -83,14 +54,19 @@ class TrackerService {
         }
       },
     );
+
+    final android2 = _notif.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (android2 != null) {
+      await android2.requestExactAlarmsPermission();
+    }
   }
 
-  // ── Permission ─────────────────────────────────────────────────────────
   Future<bool> requestNotificationPermission() async {
-    // Android 13+
     final android = _notif.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     if (android != null) {
+      await android.requestExactAlarmsPermission();
       final granted = await android.requestNotificationsPermission();
       return granted ?? false;
     }
@@ -157,7 +133,7 @@ class TrackerService {
       'Time to log your output',
       'What did you produce in the last ${intervalMinutes}m?',
       scheduledTime,
-      NotificationDetails(
+      const NotificationDetails(
         android: AndroidNotificationDetails(
           _notifChannelId,
           _notifChannelName,
@@ -166,7 +142,7 @@ class TrackerService {
           priority: Priority.high,
           ticker: 'Reality Gap',
         ),
-        iOS: const DarwinNotificationDetails(
+        iOS: DarwinNotificationDetails(
           presentAlert: true,
           presentBadge: false,
           presentSound: true,

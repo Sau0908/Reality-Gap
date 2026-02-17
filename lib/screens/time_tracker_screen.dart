@@ -10,9 +10,6 @@ import 'slot_output_screen.dart';
 ///
 ///  • Setup  — user picks an interval and taps [Start Tracking]
 ///  • Active — shows running status, today's slots, and [Stop Tracking]
-///
-/// Visual language intentionally mirrors PermissionsScreen: full-page
-/// explanation at top, action at bottom.
 class TimeTrackerScreen extends StatefulWidget {
   const TimeTrackerScreen({Key? key}) : super(key: key);
 
@@ -27,11 +24,10 @@ class _TimeTrackerScreenState extends State<TimeTrackerScreen> {
   bool _isStarting = false;
   bool _isStopping = false;
 
-  int _intervalMinutes = 30; // default before user picks
+  int _intervalMinutes = 30;
   DateTime? _startedAt;
   List<TrackerSlotModel> _slots = [];
 
-  // Duration picker result — only used in setup state
   DurationResult _pickedDuration = const DurationResult(hours: 0, minutes: 30);
 
   @override
@@ -69,7 +65,6 @@ class _TimeTrackerScreenState extends State<TimeTrackerScreen> {
   Future<void> _startTracking() async {
     final totalMinutes = _pickedDuration.totalMinutes;
 
-    // Enforce minimum 15 min
     if (totalMinutes < 15) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -82,28 +77,51 @@ class _TimeTrackerScreenState extends State<TimeTrackerScreen> {
 
     setState(() => _isStarting = true);
 
-    // Request notification permission first
-    final granted =
-        await TrackerService.instance.requestNotificationPermission();
+    // ── FIX: wrap everything in try/finally so _isStarting is always reset.
+    // Previously, any exception or hung future would leave the button
+    // spinning forever.
+    try {
+      // Request notification permission.
+      //
+      // On Android 14 (API 34+), flutter_local_notifications ≥ 16 handles
+      // POST_NOTIFICATIONS via the plugin initialisation flag
+      // (requestNotificationsPermission: true in AndroidInitializationSettings).
+      // Calling requestNotificationPermission() here is still correct — it is a
+      // no-op on older APIs and surfaces the dialog on 13+.
+      final granted =
+          await TrackerService.instance.requestNotificationPermission();
 
-    if (!granted) {
-      if (mounted) {
+      if (!granted && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Notifications blocked — enable in Settings to get reminders. Tracking will still run.',
+              'Notifications blocked — enable in Settings to get reminders. '
+              'Tracking will still run.',
             ),
             backgroundColor: Color(0xFF444444),
             duration: Duration(seconds: 4),
           ),
         );
+        // Continue — user can still manually log
       }
-      // We still start — user can manually come back to log
-    }
 
-    await TrackerService.instance.start(totalMinutes);
-    await _loadState();
-    setState(() => _isStarting = false);
+      await TrackerService.instance.start(totalMinutes);
+      await _loadState();
+    } catch (e) {
+      // Surface any error from TrackerService so the user isn't left with a
+      // frozen spinner and no feedback.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not start tracking: $e'),
+            backgroundColor: const Color(0xFFFF4444),
+          ),
+        );
+      }
+    } finally {
+      // ── Always reset the loading flag, even on error or exception.
+      if (mounted) setState(() => _isStarting = false);
+    }
   }
 
   Future<void> _stopTracking() async {
@@ -134,9 +152,21 @@ class _TimeTrackerScreenState extends State<TimeTrackerScreen> {
     if (confirmed != true) return;
 
     setState(() => _isStopping = true);
-    await TrackerService.instance.stop();
-    await _loadState();
-    setState(() => _isStopping = false);
+    try {
+      await TrackerService.instance.stop();
+      await _loadState();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not stop tracking: $e'),
+            backgroundColor: const Color(0xFFFF4444),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isStopping = false);
+    }
   }
 
   Future<void> _goToSlotOutput(TrackerSlotModel slot) async {
@@ -199,15 +229,14 @@ class _TimeTrackerScreenState extends State<TimeTrackerScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 16),
-
-          // ── Explanation ────────────────────────────────────────────────
           Text(
             'Focus Interval',
             style: Theme.of(context).textTheme.headlineMedium,
           ),
           const SizedBox(height: 16),
           Text(
-            'Set how often you want to be reminded to log your output. After each interval, we\'ll send a notification asking what you produced.',
+            'Set how often you want to be reminded to log your output. '
+            'After each interval, we\'ll send a notification asking what you produced.',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: Colors.white70,
                 ),
@@ -220,8 +249,6 @@ class _TimeTrackerScreenState extends State<TimeTrackerScreen> {
                 ),
           ),
           const SizedBox(height: 48),
-
-          // ── Interval picker ────────────────────────────────────────────
           Text(
             'INTERVAL',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -268,7 +295,6 @@ class _TimeTrackerScreenState extends State<TimeTrackerScreen> {
               ),
             ),
           ),
-
           if (!isValid && totalMinutes > 0) ...[
             const SizedBox(height: 6),
             Text(
@@ -279,10 +305,7 @@ class _TimeTrackerScreenState extends State<TimeTrackerScreen> {
                   ),
             ),
           ],
-
           const SizedBox(height: 48),
-
-          // ── Notification note ──────────────────────────────────────────
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -301,7 +324,8 @@ class _TimeTrackerScreenState extends State<TimeTrackerScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'We\'ll ask for notification permission. If denied, you can still open the app to log your output manually.',
+                    'We\'ll ask for notification permission. If denied, you can '
+                    'still open the app to log your output manually.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.white54,
                           height: 1.5,
@@ -311,10 +335,7 @@ class _TimeTrackerScreenState extends State<TimeTrackerScreen> {
               ],
             ),
           ),
-
           const SizedBox(height: 48),
-
-          // ── Start button ───────────────────────────────────────────────
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -347,8 +368,6 @@ class _TimeTrackerScreenState extends State<TimeTrackerScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 16),
-
-          // ── Status header ──────────────────────────────────────────────
           Row(
             children: [
               Text(
@@ -358,7 +377,6 @@ class _TimeTrackerScreenState extends State<TimeTrackerScreen> {
                     ),
               ),
               const SizedBox(width: 10),
-              // Pulsing green dot
               _PulseDot(),
             ],
           ),
@@ -378,12 +396,9 @@ class _TimeTrackerScreenState extends State<TimeTrackerScreen> {
                   ),
             ),
           ],
-
           const SizedBox(height: 32),
           const Divider(),
           const SizedBox(height: 32),
-
-          // ── Slots list ─────────────────────────────────────────────────
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -400,7 +415,6 @@ class _TimeTrackerScreenState extends State<TimeTrackerScreen> {
             ],
           ),
           const SizedBox(height: 16),
-
           if (_slots.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 24),
@@ -413,10 +427,7 @@ class _TimeTrackerScreenState extends State<TimeTrackerScreen> {
             )
           else
             ..._slots.map((slot) => _buildSlotCard(slot)).toList(),
-
           const SizedBox(height: 48),
-
-          // ── Stop button ────────────────────────────────────────────────
           SizedBox(
             width: double.infinity,
             child: OutlinedButton(
@@ -439,7 +450,6 @@ class _TimeTrackerScreenState extends State<TimeTrackerScreen> {
                   : const Text('Stop Tracking'),
             ),
           ),
-
           const SizedBox(height: 24),
         ],
       ),
@@ -463,7 +473,6 @@ class _TimeTrackerScreenState extends State<TimeTrackerScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Status icon ────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Icon(
@@ -476,8 +485,6 @@ class _TimeTrackerScreenState extends State<TimeTrackerScreen> {
             ),
           ),
           const SizedBox(width: 12),
-
-          // ── Content ────────────────────────────────────────────────────
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -514,8 +521,6 @@ class _TimeTrackerScreenState extends State<TimeTrackerScreen> {
               ],
             ),
           ),
-
-          // ── Log button (only for unlogged slots) ───────────────────────
           if (!isLogged)
             GestureDetector(
               onTap: () => _goToSlotOutput(slot),

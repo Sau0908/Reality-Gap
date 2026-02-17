@@ -1,5 +1,3 @@
-// screens/home_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -14,7 +12,6 @@ import 'home/app_card.dart';
 import 'home/gap_row.dart';
 import 'home/banner.dart';
 import 'home/output_section.dart';
-// TrackerCard removed — Tracker is now the second bottom-nav tab
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -81,8 +78,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Reality Gap'),
-        // Calendar and Settings removed — they live in the bottom nav now.
-        // AppBar is kept for the title and pull-to-refresh affordance.
       ),
       body: _isLoading
           ? const Center(
@@ -98,7 +93,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBody(BuildContext context) {
-    final dateFormat = DateFormat('EEEE, MMMM d');
+    final now = DateTime.now();
+
+    // e.g. "MON" and "Jan 6"
+    final dayName = DateFormat('EEE').format(now).toUpperCase();
+    final monthDay = DateFormat('MMM d').format(now);
+
+    // "Today" only — no need to show year on the home screen
+    final isToday = true;
 
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -106,10 +108,8 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            dateFormat.format(DateTime.now()),
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
+          // ── Date pill ────────────────────────────────────────────────────
+          _DateChip(dayName: dayName, monthDay: monthDay, isToday: isToday),
           const SizedBox(height: 48),
           StatRow(label: 'Scroll', value: _formatTime(_scrollMinutes)),
           const SizedBox(height: 12),
@@ -132,6 +132,91 @@ class _HomeScreenState extends State<HomeScreen> {
             onLogPressed: _goToLogOutput,
           ),
           const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+}
+
+class _DateChip extends StatelessWidget {
+  final String dayName;
+  final String monthDay;
+  final bool isToday;
+
+  const _DateChip({
+    required this.dayName,
+    required this.monthDay,
+    required this.isToday,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF2E2E2E)),
+      ),
+      child: Row(
+        children: [
+          // Day abbreviation — dimmer, acts as a label
+          Text(
+            dayName,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.0,
+              color: Color(0xFF666666),
+            ),
+          ),
+          // Subtle separator dot
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              '·',
+              style: TextStyle(
+                fontSize: 14,
+                color: Color(0xFF444444),
+              ),
+            ),
+          ),
+          // Month + day — brighter
+          Text(
+            monthDay,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFFCCCCCC),
+              letterSpacing: 0.2,
+            ),
+          ),
+          const Spacer(),
+          // "Today" accent dot — only shown when viewing current day
+          if (isToday)
+            Row(
+              children: [
+                const Text(
+                  'Today',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF4CAF50),
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF4CAF50),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );

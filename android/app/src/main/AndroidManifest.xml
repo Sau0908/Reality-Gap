@@ -1,16 +1,37 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Required permissions -->
+    <!-- ── Network ─────────────────────────────────────────────────────── -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         android:protectionLevel="signature|privileged"
         tools:ignore="ProtectedPermissions" />
 
+    <!-- ── Notifications ───────────────────────────────────────────────── -->
+    <!-- Required on Android 13+ (API 33+) for runtime permission dialog -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+    <!-- ── Exact alarms ────────────────────────────────────────────────── -->
+    <!--
+        Android 12–13 (API 31–33): SCHEDULE_EXACT_ALARM requires the user to
+        grant it manually in Settings > Apps > Special app access.
+
+        Android 14+ (API 34+): USE_EXACT_ALARM is the new permission that is
+        granted automatically at install time (no user trip to Settings needed).
+        Declare BOTH so the app works across all API levels.
+    -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        tools:ignore="ProtectedPermissions"/>
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
+
+    <!-- Reschedule alarms after device reboot -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
     <application
         android:label="Reality Gap"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -21,15 +42,35 @@
             android:windowSoftInputMode="adjustResize">
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
-                android:resource="@style/NormalTheme"
-                />
+                android:resource="@style/NormalTheme"/>
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+
         <meta-data
             android:name="flutterEmbedding"
-            android:value="2" />
+            android:value="2"/>
+
+        <!-- ── flutter_local_notifications receivers ───────────────────── -->
+        <!-- Fires scheduled notifications -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
+            android:exported="false"/>
+
+        <!-- Re-schedules notifications after reboot (needs RECEIVE_BOOT_COMPLETED) -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+                <!-- HTC devices -->
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
+
     </application>
 </manifest>
